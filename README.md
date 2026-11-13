@@ -1,5 +1,7 @@
 # 公会太刀 · 世界招式移植
 
+**[下载 PC 成品包](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.0.0/MHW-LS-MHGU-PC-v1.0.0.zip)** · [下载源码包](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.0.0/MHW-LS-MHGU-Source-v1.0.0.zip)
+
 在公会风格太刀上加入《怪物猎人：世界／冰原》的看破斩、特殊纳刀、居合拔刀斩、居合拔刀气刃斩、气刃突刺和气刃兜割。
 
 安装：关闭游戏，在支持 Forge 插件的 MHGU PC 重编译版中，把压缩包内的 romfs 放到游戏目录的 mods/MHW_WORLD_DEV/ 下。安装后应能看到 mods/MHW_WORLD_DEV/romfs/nativeNX/plugins/mhw_ls_rebuild.nro。升级时先将旧版 MOD 文件夹移出 mods，再安装新版。启动后选择公会风格与太刀。
