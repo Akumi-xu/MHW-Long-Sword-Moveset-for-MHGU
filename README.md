@@ -1,6 +1,6 @@
 # 公会太刀 · 世界招式移植
 
-**[下载 PC 成品包](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.0.0/MHW-LS-MHGU-PC-v1.0.0.zip)** · [下载源码包](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.0.0/MHW-LS-MHGU-Source-v1.0.0.zip)
+**[下载 PC 成品包](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.0.1/MHW-LS-MHGU-PC-v1.0.1.zip)** · [下载源码包](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.0.1/MHW-LS-MHGU-Source-v1.0.1.zip)
 
 在公会风格太刀上加入《怪物猎人：世界／冰原》的看破斩、特殊纳刀、居合拔刀斩、居合拔刀气刃斩、气刃突刺和气刃兜割。
 
@@ -25,3 +25,10 @@ cargo forge build --release
 ```
 
 资源转换脚本另需本地游戏转储及工作区工具；安装成品无需重新生成资源。
+
+
+## v1.0.1 显伤兼容修复
+
+已在 PC 重编译版验证兼容 `att.zip` 中的 **Attack Damage Display v1.0**。修复双方挂接怪物伤害函数时导致公会太刀拒绝启用的问题，保留显伤插件原文件名 `attack_damage_display.nro`。共加载测试覆盖小居合、大居合命中、练气回复、刃色消耗，以及显伤命中和伤害事件。其他显伤版本及模拟器兼容性仍待验证。
+
+**不要同时安装其他太刀动作、派生或连招修改 MOD。** 安装前请停用或移出这些 MOD，以及旧版公会太刀，避免动作派生和 Hook 互相覆盖。
