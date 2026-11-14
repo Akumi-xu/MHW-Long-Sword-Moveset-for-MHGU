@@ -1,0 +1,7 @@
+**/target/
+*.nro
+*.so
+**/__pycache__/
+02_build/latest/
+02_build/history/
+02_build/插件本体/

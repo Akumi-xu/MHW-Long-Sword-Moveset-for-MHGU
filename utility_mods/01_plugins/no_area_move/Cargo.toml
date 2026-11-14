@@ -1,0 +1,13 @@
+[package]
+name = "no_area_move"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+test = false
+doctest = false
+bench = false
+
+[dependencies]
+mhgu-forge = { version = "1.5.0", features = ["config"] }
