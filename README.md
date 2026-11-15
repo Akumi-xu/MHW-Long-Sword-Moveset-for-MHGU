@@ -1,10 +1,15 @@
-# 公会太刀 · 世界招式移植 v1.0.8
+# 公会太刀 · 世界招式移植 v1.1
 
-本页对应内部v13。另一条v11优化、保留v13刀线分支以v1.1发布，两版的兜割命中特效和受击结算机制不同。
+本次PC版对应关系：
+
+| 正式版本 | 内部版本 | 主要区别 |
+| --- | --- | --- |
+| [v1.0.8](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/tag/v1.0.8) | v13 | 新樱花命中特效；兜割下劈后受击时继续延迟结算 |
+| [v1.1](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/tag/v1.1) | v11优化，保留v13刀线 | 四项内部优化；保留v11命中特效和受击暂停机制 |
 
 ## 版本对应
 
-v1.0.8 = 内部 v13。在该内部基线最后追加默认特殊纳刀术3速度；版本号保持，资源与基线逐文件一致。
+v1.1 = 内部 v11优化_保留V13刀线。在该内部基线最后追加默认特殊纳刀术3速度；版本号保持，资源与基线逐文件一致。
 
 ## 最终调整
 
@@ -14,13 +19,16 @@ PC副本已测无技能与四种收刀技能来源：起手均1.16倍、后段�
 
 ## 更新与差异
 
-以内部 v13为基线，追加默认纳刀术3速度。
-- 气刃突刺、兜割和大居合采用以1.0.1为基础调整的音画；突刺刀身红线更明显并加长，大居合第二道刀线加长，保留此前对照世界调整的时机及消散。
-- 兜割使用樱花气刃斩的三组原生命中特效，缩放0.45，去除额外白色挥刀弧；下劈垂直红线保留。
-- 保留自动下劈、手动下劈及跳跃/上坡气刃后的派生。
-- 保留v12的受击独立结算：下劈已经触发后，进入已覆盖的原生受击状态，剩余延迟伤害、命中特效及音效继续推进。死亡、换区或目标失效仍清理任务。
+对应内部“v11优化_保留V13刀线版”。玩法以v11为准，保留v13的突刺红线和大居合第二道刀线。
+- 缓存粒子资源及曲线，移除逐帧重复查找；保持float32累加顺序。
+- 为298项音效建立招式索引，每次最多检查14项，保留音效时机、去重及同帧顺序。
+- 无损合并36项重复TEX/EAN资源，194项变158项，特效ARC减少109936字节；保留像素和UV。
+- 排除未走的旧控制器，清理无用标记和调试资源；插件文件减少4096字节。
+- 动作值、派生、反击窗口、刀线长度/亮度/宽度和音效时机保持对应基线。
 
-验证：既有PC0.16.0副本存档记录覆盖四刃色突刺、三种开刃大居合音画、自动兜割七次真实扣血，以及受击状态中的七次樱花命中特效。受击测试包含夹具切换，未逐个覆盖怪物攻击、眩晕及所有异常。
+与v1.0.8的区别：本版按回退要求保留v11的兜割命中特效及结算方式，没有v12受击独立结算，也没有v13的新樱花替换。兜割被打断时，剩余延迟伤害和特效可能等人物僵直结束后继续。
+
+验证：既有PC0.16.0副本记录覆盖两道保留刀线、看破、三种开刃大居合实际音画、自动兜割七次真实扣血。等价性检查覆盖41040次float32值、10260次完整粒子变换及200901组音效选择；未单独测量帧率或显存收益。
 
 ## 安装与操作
 
@@ -32,16 +40,16 @@ PC安装：关闭游戏，先把旧版MHW_WORLD_DEV整个移出mods，再将本�
 
 ## 下载和源码
 
-- PC成品：[MHW-LS-MHGU-PC-v1.0.8.zip](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.0.8/MHW-LS-MHGU-PC-v1.0.8.zip)
-- 配套源码：[MHW-LS-MHGU-Source-v1.0.8.zip](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.0.8/MHW-LS-MHGU-Source-v1.0.8.zip)。含C/Rust源码、生成头、Cargo.lock、构建配置、默认参数、测试、资源编辑及重新组装工具，步骤见BUILD.txt；修改资源以本页PC附件为基线。
+- PC成品：[MHW-LS-MHGU-PC-v1.1.zip](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.1/MHW-LS-MHGU-PC-v1.1.zip)
+- 配套源码：[MHW-LS-MHGU-Source-v1.1.zip](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.1/MHW-LS-MHGU-Source-v1.1.zip)。含C/Rust源码、生成头、Cargo.lock、构建配置、默认参数、测试、资源编辑及重新组装工具，步骤见BUILD.txt；修改资源以本页PC附件为基线。
 - 本轮仅发布PC包；旧模拟器v1.0.7仍在历史发行页，本轮没有更新或重新验收。
 
 制作/测试决策：Akumi-xu；OpenAI Codex辅助代码、分析及打包。原生游戏素材权利归CAPCOM；本次未变更第三方许可。
 
 ## SHA256
 
-- `MHW-LS-MHGU-PC-v1.0.8.zip`：`9176135fd3b09d07824ed8a2f275d9683dad62d3a8641decc57c8a30ad1879af`
-- `MHW-LS-MHGU-Source-v1.0.8.zip`：`dadb36570d6415c96c5177f325771aa97bb1792c7b9856b0830f76c4f9b2a155`
+- `MHW-LS-MHGU-PC-v1.1.zip`：`4bd3928a85b0e836f9a90df9f61bc87cb59384ca11ca514272ccae4d55e2983b`
+- `MHW-LS-MHGU-Source-v1.1.zip`：`79277855fbe8485f23c68b698a5385843ac42ffa926976dec6f696984a52235e`
 
 ## 旧模拟器版本
 
