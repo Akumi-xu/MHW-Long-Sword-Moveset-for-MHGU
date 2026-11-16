@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 Push-Location "$PSScriptRoot/01_plugins/mhw_ls_rebuild"
 try {
     $env:ML_WORLD_COMBAT="1"

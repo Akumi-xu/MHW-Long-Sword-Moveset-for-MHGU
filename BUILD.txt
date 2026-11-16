@@ -1,4 +1,4 @@
-公会太刀 v1.1 源码与构建（内部对应：v11优化_保留V13刀线）
+﻿公会太刀 v1.1 源码与构建（内部对应：v11优化_保留V13刀线）
 
 1. 将本包解压到纯ASCII目录，完整保留.cache/mhw_ls_animation_port/attachment_data.h。源码不包含游戏转储、存档、密钥、第三方MOD或反编译C。
 依赖：Windows、Rust 1.101.0-nightly (12433c307 2026-10-24，host x86_64-pc-windows-gnu)、rust-src；cargo-mhgu-forge 1.5.0；mhgu-forge 1.5.0（Cargo.lock）；ARM GCC xPack15.2.1-1.1；Python3（已用3.13验证）；主机gcc用于测试。安装cargo子命令：cargo install cargo-mhgu-forge --version 1.5.0 --locked。rust-toolchain.toml沿用nightly，构建前用rustc -Vv核对上述版本。
