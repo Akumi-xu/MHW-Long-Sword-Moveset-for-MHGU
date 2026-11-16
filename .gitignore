@@ -1,0 +1,7 @@
+/02_build/
+**/target/
+*.nro
+*.so
+*.exe
+__pycache__/
+/公会太刀_*.zip

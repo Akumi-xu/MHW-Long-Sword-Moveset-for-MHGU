@@ -53,8 +53,16 @@ PC安装：关闭游戏，先把旧版MHW_WORLD_DEV整个移出mods，再将本�
 
 ## 旧模拟器版本
 
-[模拟器v1.0.7](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/tag/v1.0.7)，需要现有Forge加载器。本轮PC改动未在模拟器、安卓或实机验收。仓库根目录“公会太刀_模拟器版.zip”仍为v1.0.7。
+[模拟器v1.0.7](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/tag/v1.0.7)，需要现有Forge加载器。本轮PC改动未在模拟器、安卓或实机验收。旧模拟器安装包仅在该历史发行页提供，版本仍为 v1.0.7。
 
 ## 其他实用 MOD
 
-[怪物显隐、无边缘传送、斩味条HUD](utility_mods/)保持原样。
+[怪物显隐](https://github.com/Akumi-xu/MHGU-Monster-Hide)、[无边缘传送](https://github.com/Akumi-xu/MHGU-No-Area-Move)、[斩味条 HUD](https://github.com/Akumi-xu/MHGU-Sharpness-HUD) 已有独立仓库，请从各自 Release 下载。
+
+## 仓库源码
+
+当前 v1.1 配套源码已直接展开在本仓库，构建步骤见 [BUILD.txt](BUILD.txt)，工程位于 [01_plugins/mhw_ls_rebuild](01_plugins/mhw_ls_rebuild/)。请保留 `.cache/mhw_ls_animation_port/attachment_data.h`，这是构建所需的配套数据头文件。
+
+旧标签自动生成的 Source code 仍是当时的仓库快照；需要旧版太刀源码时，请下载该发行页的 `MHW-LS-MHGU-Source-版本号.zip` 附件。
+
+仓库保存展开的源码与构建材料；安装包统一从 Release 下载。历史版本及标签保持原样。

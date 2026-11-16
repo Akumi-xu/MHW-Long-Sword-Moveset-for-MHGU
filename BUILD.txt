@@ -1,0 +1,39 @@
+公会太刀 v1.1 源码与构建（内部对应：v11优化_保留V13刀线）
+
+1. 将本包解压到纯ASCII目录，完整保留.cache/mhw_ls_animation_port/attachment_data.h。源码不包含游戏转储、存档、密钥、第三方MOD或反编译C。
+依赖：Windows、Rust 1.101.0-nightly (12433c307 2026-10-24，host x86_64-pc-windows-gnu)、rust-src；cargo-mhgu-forge 1.5.0；mhgu-forge 1.5.0（Cargo.lock）；ARM GCC xPack15.2.1-1.1；Python3（已用3.13验证）；主机gcc用于测试。安装cargo子命令：cargo install cargo-mhgu-forge --version 1.5.0 --locked。rust-toolchain.toml沿用nightly，构建前用rustc -Vv核对上述版本。
+把ARM GCC的bin加入PATH，或设置环境变量ARM_GCC为arm-none-eabi-gcc.exe绝对路径；链接器仍需在PATH中找到arm-none-eabi-gcc。发布源码仅把build.rs的本机编译器路径改为环境变量/PATH查找，除world_motion_speed默认使用1.16倍外，游戏逻辑及生成头文件保持基线；RELEASE.json列出对应成品和游戏逻辑源码哈希。工程内部Cargo版本0.1.0不是发行版本号，以RELEASE.json为准。
+
+2. 在解压根目录运行：powershell -NoProfile -ExecutionPolicy Bypass -File ./build.ps1
+脚本启用ML_WORLD_COMBAT=1、ML_WORLD_INPUT_VM=1、ML_WORLD_PRESENTATION=1，关闭预览/音画探针；生成01_plugins/mhw_ls_rebuild/mhw_ls_rebuild.nro并检查重定位。所有默认参数直接保留在c/源码和生成头中，没有额外ini。
+
+3. 完整MOD组装：从同一发行页下载MHW-LS-MHGU-PC-v1.1.zip，作为与源码配对的修改资源基线（RELEASE.json校验其SHA256）。不需要任何未公开的v10/v11/v12中间包。
+python repack.py <对应PC成品ZIP> <自己编译的NRO> <新文件名.zip>
+repack.py先校验配对版本、资源和NRO重定位，再保留资源和说明，用新NRO组装。不要覆盖源ZIP。编译路径、工具链与链接标识可能导致NRO字节哈希不同；本次最终NRO已用配套源码重新编译并通过重定位和PC副本实测。
+
+4. 修改资源：从上述PC包取所需ARC，python arc_edit.py unpack <输入.arc> <新目录>；编辑其中bin及entries.json后，python arc_edit.py pack <目录> <新输出.arc>。目录记录原资源路径、类型与flags；打包重新计算长度并做解包一致性检查。TEX必须保持TEX\0格式，不能直接换成PNG；有同路径覆盖时只能启用一份。可使用自己的合法游戏数据作参考；本包不附原版游戏ARC。资源基线是发行版内的最终修改资源，完整保留安装所需各项；不要求重跑内部历史配方。
+
+5. 主机逻辑测试：
+gcc -DML_WORLD_INPUT_VM=1 helm_test.c 01_plugins/mhw_ls_rebuild/c/world_core.c 01_plugins/mhw_ls_rebuild/c/moveset.c -lm -o helm_test.exe
+./helm_test.exe
+gcc thrust_fx_test.c -lm -o thrust_fx_test.exe
+./thrust_fx_test.exe
+python test_equivalence.py
+若更改world_particle_dynamics.h或world_audio_events.h，先运行python generate_indices.py再编译；生成头文件已提供。
+
+对应内部“v11优化_保留V13刀线版”。玩法以v11为准，保留v13的突刺红线和大居合第二道刀线。
+- 缓存粒子资源及曲线，移除逐帧重复查找；保持float32累加顺序。
+- 为298项音效建立招式索引，每次最多检查14项，保留音效时机、去重及同帧顺序。
+- 无损合并36项重复TEX/EAN资源，194项变158项，特效ARC减少109936字节；保留像素和UV。
+- 排除未走的旧控制器，清理无用标记和调试资源；插件文件减少4096字节。
+- 动作值、派生、反击窗口、刀线长度/亮度/宽度和音效时机保持对应基线。
+
+与v1.0.8的区别：本版按回退要求保留v11的兜割命中特效及结算方式，没有v12受击独立结算，也没有v13的新樱花替换。兜割被打断时，剩余延迟伤害和特效可能等人物僵直结束后继续。
+
+验证：既有PC0.16.0副本记录覆盖两道保留刀线、看破、三种开刃大居合实际音画、自动兜割七次真实扣血。等价性检查覆盖41040次float32值、10260次完整粒子变换及200901组音效选择；未单独测量帧率或显存收益。
+
+平台及兼容性限制：仅PC0.16.0已验证；其他平台与所有怪物/地图/第三方插件组合未覆盖。
+归属：Akumi-xu制作/测试决策，OpenAI Codex辅助代码、分析和打包；CAPCOM保留游戏及原生素材权利，Forge及工具依赖遵循各自许可。本次不额外授予第三方素材许可。
+
+最终调整（版本号保持）：特殊纳刀默认内置世界纳刀术3速度：起手有效阶段1.16倍，无需收刀技能；GU收刀术不重复叠加。后段等待、居合反击窗口和其他招式参数保持。
+运行python test_sheathe_speed.py检查默认倍率、等待段、其他招式和源速度保留；DEFAULT_SHEATHE.json记录五种技能条件下的实际动作速度。
