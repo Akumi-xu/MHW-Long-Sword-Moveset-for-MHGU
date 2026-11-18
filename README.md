@@ -1,6 +1,6 @@
 # 公会太刀 · 世界招式移植 v1.1
 
-本次PC版对应关系：
+本次 Recomp 版对应关系：
 
 | 正式版本 | 内部版本 | 主要区别 |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ PC副本已测无技能与四种收刀技能来源：起手均1.16倍、后段�
 
 ## 安装与操作
 
-PC安装：关闭游戏，先把旧版MHW_WORLD_DEV整个移出mods，再将本包romfs放入游戏目录mods/MHW_WORLD_DEV/。不要直接叠加旧版残留文件，不要同时启用另一份公会太刀或其他太刀动作/派生MOD。使用公会风格太刀。
+Recomp 安装：关闭游戏，先把旧版MHW_WORLD_DEV整个移出mods，再将本包romfs放入游戏目录mods/MHW_WORLD_DEV/。不要直接叠加旧版残留文件，不要同时启用另一份公会太刀或其他太刀动作/派生MOD。使用公会风格太刀。
 操作（GU按键）：攻击中R+A看破斩、R+B特殊纳刀、R+X气刃突刺；纳刀后X小居合、R大居合；开刃突刺命中起跳后可自动下劈或按R手动下劈。
 参数：无新增配置菜单或外置ini；默认数值已包含在插件中，修改源码后可重新构建。
 限制：主要验证MHGURecomp 0.16.0；本次未做安卓、模拟器或实机验收，也未重新覆盖所有第三方MOD组合；并非世界画面的完全还原。
@@ -40,15 +40,15 @@ PC安装：关闭游戏，先把旧版MHW_WORLD_DEV整个移出mods，再将本�
 
 ## 下载和源码
 
-- PC成品：[MHW-LS-MHGU-PC-v1.1.zip](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.1/MHW-LS-MHGU-PC-v1.1.zip)
-- 配套源码：[MHW-LS-MHGU-Source-v1.1.zip](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.1/MHW-LS-MHGU-Source-v1.1.zip)。含C/Rust源码、生成头、Cargo.lock、构建配置、默认参数、测试、资源编辑及重新组装工具，步骤见BUILD.txt；修改资源以本页PC附件为基线。
-- 本轮仅发布PC包；旧模拟器v1.0.7仍在历史发行页，本轮没有更新或重新验收。
+- Recomp 成品：[MHW-LS-MHGU-v1.1-Recomp.zip](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.1/MHW-LS-MHGU-v1.1-Recomp.zip)
+- 配套源码：[MHW-LS-MHGU-Source-v1.1.zip](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.1/MHW-LS-MHGU-Source-v1.1.zip)。含C/Rust源码、生成头、Cargo.lock、构建配置、默认参数、测试、资源编辑及重新组装工具，步骤见BUILD.txt；修改资源以本页 Recomp 附件为基线。
+- 本轮仅发布 Recomp 包；旧模拟器v1.0.7仍在历史发行页，本轮没有更新或重新验收。
 
 制作/测试决策：Akumi-xu；OpenAI Codex辅助代码、分析及打包。原生游戏素材权利归CAPCOM；本次未变更第三方许可。
 
 ## SHA256
 
-- `MHW-LS-MHGU-PC-v1.1.zip`：`4bd3928a85b0e836f9a90df9f61bc87cb59384ca11ca514272ccae4d55e2983b`
+- `MHW-LS-MHGU-v1.1-Recomp.zip`：`4bd3928a85b0e836f9a90df9f61bc87cb59384ca11ca514272ccae4d55e2983b`
 - `MHW-LS-MHGU-Source-v1.1.zip`：`79277855fbe8485f23c68b698a5385843ac42ffa926976dec6f696984a52235e`
 
 ## 旧模拟器版本
