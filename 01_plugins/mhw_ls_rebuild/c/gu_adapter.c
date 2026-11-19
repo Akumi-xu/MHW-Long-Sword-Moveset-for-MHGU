@@ -63,8 +63,8 @@ static void ml_pad_read(void)
     uptr pad=*(uptr *)(main_base+0x2126888);if(!pad||(pad&3))return;
     int index=*(int *)(pad+0x6b60);if(index<0||index>8)return;
     u32 raw=*(u32 *)(pad+(u32)index*0xb50+0x1d0);
-    held=((raw&0x1000)?ML_X:0)|((raw&0x2000)?ML_A:0)|((raw&0x200)?ML_R:0)|
-         ((raw&0x4000)?ML_B:0)|((raw&0x8000)?ML_Y:0)|((raw&0x800)?ML_ZR:0);
+    held=((raw&0x1000)?ML_X:0)|((raw&0x2000)?ML_A:0)|((raw&0x800)?ML_R:0)|
+         ((raw&0x4000)?ML_B:0)|((raw&0x8000)?ML_Y:0)|((raw&0x200)?ML_ZR:0);
     pad_valid=1;
 }
 void ml_pad_refresh(void){++sample_sequence;ml_pad_read();}
