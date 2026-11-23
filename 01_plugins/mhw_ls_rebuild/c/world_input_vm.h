@@ -102,6 +102,12 @@ static inline unsigned w_command_query(const WCommands *c,WCommandQueries *q,
 
 static inline unsigned w_permission_bit(const uint32_t *p,int bit)
 {return bit>=0&&bit<256?((p[(unsigned)bit/32]>>((unsigned)bit%32))&1u):0;}
+static inline unsigned w_command_stage(const uint32_t *permission,unsigned id)
+{
+    int bit=world_command_bits[id];
+    return w_permission_bit(permission,bit-1)|(w_permission_bit(permission,bit)<<1);
+}
+
 /* Native1230230; aliases share a permission and are consumed together.
  * Primary and secondary action-layer changes have distinct clearing rules. */
 static inline void w_command_prune(WCommands *c,WCommandQueries *q,uint32_t *previous,

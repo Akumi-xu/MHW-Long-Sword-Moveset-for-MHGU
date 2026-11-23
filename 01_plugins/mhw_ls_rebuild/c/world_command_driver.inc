@@ -115,8 +115,7 @@ static void world_guild_chords(WState *s,unsigned held,const uint32_t *permissio
     static const unsigned ids[]={53,60,24},partners[]={ML_X,ML_A,ML_B},buttons[]={0,1,3};
     for(unsigned i=0;i<3;++i){
         unsigned id=ids[i],mask=ML_R|partners[i];
-        int bit=world_command_bits[id];
-        unsigned stage=w_permission_bit(permission,bit-1)|(w_permission_bit(permission,bit)<<1);
+        unsigned stage=w_command_stage(permission,id);
         if(!stage||(held&~mask)){
             if(s->gu_chord_wait==id)s->gu_chord_wait=0;
             continue;
@@ -244,7 +243,11 @@ static WDecision world_command_step(WState *s,const WObservation *o,unsigned sou
     if(s->move&&event&&((event->input[0]>>8)&3)==3&&
        w_controls_query(&s->controls,17,0,0)){
         WDecision d=w_leave(s);d.kind=W_ROLL;
-        d.heading=b->magnitude>=50?b->input_heading:b->heading;return d;
+        if(world_attack_back(b)){
+            d.slot=WORLD_BACK_ROLL_SLOT;
+            d.heading=b->heading;
+        }else d.heading=b->magnitude>=50?b->input_heading:b->heading;
+        return d;
     }
     if(s->move&&(b->motion_finished||frame>=w_clip(source)->length-1)){
         WDecision d=w_leave(s);d.kind=W_IDLE;return d;

@@ -32,7 +32,7 @@ static void world_loop_heading(void *a)
 static float world_entry_blend;
 static void *world_idle_actor;static unsigned world_idle_motion,world_idle_epoch;
 static float world_entry_start,world_entry_speed=1;
-#if ML_WORLD_INPUT_VM
+#if ML_WORLD_INPUT_VM && ML_WORLD_INPUT_TRACE
 static unsigned world_input_trace_sample,world_input_trace_actor,world_input_trace_flags[5];
 static void world_input_trace(void *a,const WObservation *o)
 {
@@ -87,21 +87,21 @@ static void world_spirit_hud(void *hud)
     if(strength>0&&gauge<=100)ml_gauge_glow((gauge<<8)|(unsigned)(strength*255));
 
 }
+static void set_real(void *a,u32 at,float x){*(float *)((uptr)a+at)=x;}
 static void (*world_original_timers)(void *);
 static void world_timers(void *a)
 {
-    unsigned own=local_guild(a)&&world.actor==(u32)(uptr)a&&world.epoch==byte(a,AREA)&&
-        (int16_t)u16(a,HP)>0&&(world_regen>0||world_helm_regen>0);
-    unsigned gauge=word(a,0x2780);float decay=real(a,0x3328);
+    unsigned keep_gauge=local_guild(a)&&(int16_t)u16(a,HP)>0;
+    float decay=real(a,0x3328);
+    /* Keep only the passive gauge countdown away from zero during this
+     * native timer update. Its independent spirit/blade timers still tick. */
+    if(keep_gauge)set_real(a,0x3328,6000.f);
     world_original_timers(a);
-    /* Native119eef0 contains passive gauge decay and other independent timers.
-     * Source skips only that decay while either regeneration effect is active. */
-    if(own){put(a,0x2780,gauge);*(float *)((uptr)a+0x3328)=decay;}
+    if(keep_gauge)set_real(a,0x3328,decay);
 }
 static int world_hit=-1;
 static unsigned world_attack_id,world_attack_actor,world_attack_owned,world_contact_seen;
 static unsigned world_counter_seen;
-static void set_real(void *a,u32 at,float x){*(float *)((uptr)a+at)=x;}
 #include "world_physics.inc"
 typedef float (__attribute__((pcs("aapcs-vfp"))) *AttackScale)(void *);
 static AttackScale world_original_attack_scale;
@@ -130,10 +130,6 @@ static u32 world_flinch_resist(void *a)
 #if ML_WORLD_PRESENTATION
 static void world_audio_epv(void *,unsigned,const float *);
 static void world_audio_blade(void *,const float *);
-static void world_audio_tail(void *,float,const float *);
-#endif
-#if ML_WORLD_PRESENTATION
-static void world_big_counter_flash(void *);
 #endif
 #include "world_detector.inc"
 static u32 world_hp(void *a,int damage,void *result,u32 flags)
@@ -206,7 +202,6 @@ static unsigned world_contact(void *a)
 }
 #if ML_WORLD_PRESENTATION
 static void world_helm_impact(void *,const float *);
-static void world_helm_line(void *,const float *);
 static void world_sfx_emit(void *,const float *,unsigned);
 #endif
 #include "world_follow.inc"
@@ -227,6 +222,49 @@ static unsigned world_ready(void *a)
         hdp&&word(hdp,0)==0x00504448&&word(hdp,8)>=WORLD_HIT_COUNT&&
         hts&&word(hts,0)==0x00535448&&word(hts,8)>=WORLD_SHAPE_COUNT;
 }
+static const float world_back_roll_rate=1.6f;
+static struct { void *actor; unsigned epoch, facing, sample; } world_back_roll_pending;
+static void *world_back_roll_actor;
+static unsigned world_back_roll_epoch,world_back_roll_action;
+
+static void world_back_roll_arm(void *a,unsigned facing)
+{
+    world_back_roll_pending.actor=a;
+    world_back_roll_pending.epoch=byte(a,AREA);
+    world_back_roll_pending.facing=facing;
+    world_back_roll_pending.sample=sample_sequence;
+}
+static unsigned world_back_roll_bind(void *a,unsigned motion)
+{
+    unsigned action=u16(a,ACTION);
+    if(world_back_roll_pending.actor!=a||u16(a,STATE)!=1||
+       !((action==6&&motion==28)||(action==13&&motion==5013)||(action==14&&motion==5012)))
+        return 0;
+    world_back_roll_pending.actor=0;
+    if(world_back_roll_pending.epoch!=byte(a,AREA)||sample_sequence-world_back_roll_pending.sample>2)
+        return 0;
+    void *resource=(void *)(uptr)word(a,0xf04+20);
+    void *bank=resource?(void *)(uptr)word(resource,0x64):0;
+    if(!bank||u16(bank,6)<=WORLD_BACK_ROLL_SLOT||!word(bank,8+WORLD_BACK_ROLL_SLOT*4))
+        return 0;
+    unsigned facing=world_back_roll_pending.facing;
+    put(a,HEADING,facing);
+    put(a,TARGET,facing);
+    world_back_roll_actor=a;
+    world_back_roll_epoch=byte(a,AREA);
+    world_back_roll_action=action;
+    set_real(a,0x14b0,world_back_roll_rate);
+    log_event("world_attack_roll",(u32)(uptr)a,facing,motion,WORLD_BACK_ROLL_SLOT);
+    return 5000+WORLD_BACK_ROLL_SLOT;
+}
+static void world_back_roll_end(void *a)
+{
+    if(world_back_roll_actor!=a)return;
+    world_back_roll_actor=0;
+    set_real(a,0x14b0,1);
+    set_real(a,0x50c,1);
+}
+
 static void world_pay(void *a,WDecision d)
 {
     if(d.rank_delta)((void (*)(void *,int))(main_base+0x119ed98))(a,d.rank_delta);
@@ -272,8 +310,7 @@ static void world_hit_tick(void *a,const WEvent *e)
     world_attack_id=u16(a,0x3054);world_attack_actor=(u32)(uptr)a;world_attack_owned=1;
     put(a,0x30a8,hit->shape);
 #if ML_WORLD_PRESENTATION
-    /* Hide only the first Iai contact flash; damage and source sound remain. */
-    /* v1.0.1 retains the native first-contact Iai flash. */
+    if(world.move==W_BIG)*(uint16_t *)((uptr)a+0x3072)=0;
 #endif
     set_real(a,0x307c,0);set_real(a,0x3080,10000);
     if(world.move==W_THRUST||world.move==W_DOWN||world.move==W_LAND)
@@ -302,9 +339,6 @@ static void world_commit(void *a,WDecision d)
     world_r_gate.active=0;
     if(d.kind!=W_ENTER||d.move<W_RISE||d.move>W_DOWN)world_physics_end(a);
     if(d.kind==W_ENTER){
-#if ML_WORLD_PRESENTATION
-        if(d.move==W_LAND)world_helm_landed=world_elapsed;
-#endif
 #if ML_WORLD_PRESENTATION && WORLD_AUDIO_GROUND
         const float *point=(const float *)((uptr)a+0x40);
         if(
@@ -312,14 +346,14 @@ static void world_commit(void *a,WDecision d)
             world_audio_epv(a,25505,point);
         if(d.move==W_BIG && world.rank)world_audio_epv(a,25605,point);
         if(d.move==W_RISE)world_audio_epv(a,25515,point);
-        if(d.move==W_LAND){
-            if(world_helm_count)world_audio_tail(a,1,world_helm_sound_point);
-        }
+        if(d.move==W_RISE)world_helm_wave_played=0;
+#endif
+#if ML_WORLD_PRESENTATION
+        if(d.move==W_BIG)world_iai_contact=0;
 #endif
         if(d.move==W_RISE){
             world_helm_tier=world.rank;
             world_helm_count=world_helm_hit_sample=world_helm_emitted=0;
-            world_helm_line_hit=0;
             for(unsigned i=0;i<7;++i){world_follow[i].live=0;world_follow[i].remaining=0;}
             for(unsigned i=0;i<10;++i)world_primary_cooldown[i].target=0;
             world_rise_dx=real(a,0x3040)-real(a,0x40);
@@ -359,6 +393,7 @@ static void world_commit(void *a,WDecision d)
         log_event("world_chord_solo",(u32)(uptr)a,target,0x1000,gauge);
         if(target)virtual_request(a,16,target,0x1000);
     }else if(d.kind==W_ROLL){
+        if(d.slot==WORLD_BACK_ROLL_SLOT)world_back_roll_arm(a,d.heading);
         put(a,HEADING,d.heading);put(a,TARGET,d.heading);
         virtual_request(a,1,6,12);
     }
@@ -525,8 +560,85 @@ static unsigned world_request(void *a,unsigned state,unsigned action,unsigned fl
     return 0;
 #endif
 }
+#if ML_WORLD_INPUT_VM
+static unsigned world_try_hunter_art(void *a,const WObservation *o)
+{
+    if(!world_bound||!o->alive||!o->grounded||
+       o->base.native_action!=w_action(world.move)||o->base.motion!=0x500+world.slot||
+       !w_private(o->state,o->base.native_action)||word(a,0x24a8))return 0;
+
+    const WEvent *e=w_event(world.source,o->base.animation_frame);
+    if(!e||e->hit>=0)return 0;
+    unsigned roll=(e->input[WI_ROLL.word]>>WI_ROLL.shift)&3;
+    unsigned spirit=(e->input[WI_R.word]>>WI_R.shift)&3;
+    unsigned recovery=world.move==W_GROUND?roll==3:
+        world.move==W_FORESIGHT?(roll||spirit==3):
+        (world.move==W_THRUST||world.move==W_LAND||world.move==W_SMALL||world.move==W_BIG)&&roll;
+    if(!recovery)return 0;
+
+    /* Supply the ordinary GU Hunter Art command to its own evaluator during
+     * private recovery. 0x8010/0xf1, predicate 19, is the shared stock entry.
+     * The evaluator resolves the equipped slot and handles its native costs. */
+    u32 command[31]={0};
+    command[25]=0x00f18010u;command[26]=0x00130000u;
+    u32 row[]={0,1,(u32)(uptr)command,0,0,0};
+    u32 entry=(u32)(uptr)row;
+    u32 table[]={0,0,1,0,0,(u32)(uptr)&entry};
+    unsigned char *latched=(unsigned char *)((uptr)a+0x24b0);
+    unsigned saved=*latched,source=world.source;
+    *latched=0;put(a,0x24a8,(u32)(uptr)table);
+    ((u32 (*)(void *))(main_base+0x2e9d54))(a);
+    if(word(a,0x24a8)==(u32)(uptr)table){
+        put(a,0x24a8,0);*latched=saved;
+    }
+    if(u16(a,STATE)==16&&u16(a,ACTION)==o->base.native_action)return 0;
+    log_event("world_hunter_art",o->base.actor,source,(u32)(o->base.animation_frame*1000),
+        (u16(a,STATE)<<16)|u16(a,ACTION));
+    return 1;
+}
+#endif
+static unsigned world_bind_pending(void *a,unsigned magnitude)
+{
+    if(!world.move||world_bound||u16(a,ACTION)!=w_action(world.move))return 0;
+    ((void (*)(void *,u32,u32,u32))(main_base+0x282fd8))(a,0,0,0);
+    *(unsigned char *)((uptr)a+5)=1;
+    /* GU53a1dc adds two frames to positive blends and otherwise sets
+     * internal10000 (root motion during interpolation). Flag80 avoids
+     * that stock root mode; flag1 lets native280c1c advance the action
+     * clock while poses blend (default GU freezes it until blend ends).
+     * Keep the source duration, frame0 and unmodified event clock. */
+    original_layer(a,0,5000+world.slot,world_entry_blend>0?0x81:0,
+                   world_entry_blend>2?world_entry_blend-2:0,world_entry_start,world_entry_speed);
+    log_event("world_blend",(u32)(uptr)a,world.source,(u32)world_entry_blend,(u32)real(a,0x4f4));
+    /* Stock common action1:2 uses vtable46c / 2a2560(a,0) to sheath.
+     * Keep its packed flags intact while playing source cIaigiriWpOff312. */
+    if(world.move==W_SHEATHE_END)
+        ((void (*)(void *,unsigned))(main_base+0x2a2560))(a,0);
+    world_physics_begin(a,world.move,magnitude);
+    world_bound=1;world_bound_action=w_action(world.move);world_bound_actor=(u32)(uptr)a;
+#if ML_WORLD_AUDIO_PROBE || ML_WORLD_PRESENTATION
+    world_audio_begin(a);
+#if ML_WORLD_PRESENTATION && WORLD_AUDIO_GROUND
+    if(world.move==W_LAND)
+        world_audio_helm_land(a,real(a,FRAME),world_helm_count?world_helm_sound_point:0);
+#endif
+#endif
+    world_fx_begin(a);
+    world_detector_begin(a);
+    log_event("world_bound",(u32)(uptr)a,world.move,u16(a,MOTION),word(a,0x1c));
+    if(world.move==W_GROUND)log_event("world_ground_phase",(u32)(uptr)a,world.source,
+        world.ground_node,(u32)(real(a,FRAME)*1000));
+    return 1;
+}
 static unsigned world_update(void *a,const MLObservation *b)
 {
+    if(world_back_roll_actor==a){
+        if(u16(a,STATE)==1&&b->native_action==world_back_roll_action&&b->motion==WORLD_BACK_ROLL_MOTION&&
+           world_back_roll_epoch==byte(a,AREA)){
+            set_real(a,0x14b0,world_back_roll_rate);
+            set_real(a,0x50c,world_back_roll_rate);
+        }else world_back_roll_end(a);
+    }
     world_loop_heading(a);
 #if ML_WORLD_AUDIO_PROBE || ML_WORLD_PRESENTATION
     world_audio_tick(a);
@@ -536,9 +648,11 @@ static unsigned world_update(void *a,const MLObservation *b)
         .alive=(int16_t)u16(a,HP)>0,.grounded=!(word(a,AIR)&0x400),
         .rank=((unsigned (*)(void *))(main_base+0x119ed80))(a),.resources_ready=world_ready(a)};
     o.contact=world_contact(a);o.counter=world_counter_seen;
-    if(world_air_owner(a))o.grounded=real(a,0x44)<=real(a,0x10f0)+1&&real(a,0x1014)<=0;
-    /* Guild's aerial spirit action uses AIR=0x2008, not the ground handler's 0x400 bit. */
-    if(o.state==16&&((b->native_action>=72&&b->native_action<=75&&b->motion>=0x599&&b->motion<=0x59c)||b->motion==0x598))
+    /* These aerial actions use floor contact in place of the AIR ground bit. */
+    unsigned aerial_spirit=o.state==16&&
+        (b->motion==0x598||(b->native_action>=72&&b->native_action<=75&&
+                           b->motion>=0x599&&b->motion<=0x59c));
+    if(world_air_owner(a)||aerial_spirit)
         o.grounded=real(a,0x44)<=real(a,0x10f0)+1&&real(a,0x1014)<=0;
     if(o.contact&&!world_contact_seen){world_contact_seen=1;
         log_event("world_contact",(u32)(uptr)a,world.source,word(a,0x30d0),word(a,0x30cc));}
@@ -576,33 +690,7 @@ static unsigned world_update(void *a,const MLObservation *b)
         }
         if(!o.alive||!o.resources_ready){world_normal_gauge_tenths=0;world_regen=world_helm_regen=world_armor=0;world_follow_clear();}
     }
-    if(world.move&&u16(a,ACTION)==w_action(world.move)&&!world_bound){
-        ((void (*)(void *,u32,u32,u32))(main_base+0x282fd8))(a,0,0,0);
-        *(unsigned char *)((uptr)a+5)=1;
-        /* GU53a1dc adds two frames to positive blends and otherwise sets
-         * internal10000 (root motion during interpolation). Flag80 avoids
-         * that stock root mode; flag1 lets native280c1c advance the action
-         * clock while poses blend (default GU freezes it until blend ends).
-         * Keep the source duration, frame0 and unmodified event clock. */
-        original_layer(a,0,5000+world.slot,world_entry_blend>0?0x81:0,
-                       world_entry_blend>2?world_entry_blend-2:0,world_entry_start,world_entry_speed);
-        log_event("world_blend",(u32)(uptr)a,world.source,(u32)world_entry_blend,(u32)real(a,0x4f4));
-        /* Stock common action1:2 uses vtable46c / 2a2560(a,0) to sheath.
-         * Keep its packed flags intact while playing source cIaigiriWpOff312. */
-        if(world.move==W_SHEATHE_END)
-            ((void (*)(void *,unsigned))(main_base+0x2a2560))(a,0);
-        world_physics_begin(a,world.move,o.base.magnitude);
-        world_bound=1;world_bound_action=w_action(world.move);world_bound_actor=(u32)(uptr)a;
-#if ML_WORLD_AUDIO_PROBE || ML_WORLD_PRESENTATION
-        world_audio_begin(a);
-#endif
-        world_fx_begin(a);
-        world_detector_begin(a);
-        o.base=observe(a,1);
-        log_event("world_bound",(u32)(uptr)a,world.move,u16(a,MOTION),word(a,0x1c));
-        if(world.move==W_GROUND)log_event("world_ground_phase",(u32)(uptr)a,world.source,
-            world.ground_node,(u32)(real(a,FRAME)*1000));
-    }
+    if(world_bind_pending(a,o.base.magnitude))o.base=observe(a,1);
     unsigned heading;
     if(w_rotation(&world,&o,&heading)){
         put(a,HEADING,heading);put(a,TARGET,heading);o.base.heading=heading;
@@ -614,11 +702,36 @@ static unsigned world_update(void *a,const MLObservation *b)
         unsigned facing=(world.heading+w_root_heading(world.source,real(a,FRAME)))&65535u;
         put(a,HEADING,facing);put(a,TARGET,facing);o.base.heading=facing;
     }
-    WDecision d=w_step(&world,&o);
 #if ML_WORLD_INPUT_VM
+    if(world_try_hunter_art(a,&o))return 1;
+#endif
+    unsigned previous_source=w_source(o.base.motion);
+    unsigned iais_waiting=0;
+#if ML_WORLD_INPUT_VM
+    if(previous_source==306){
+        const WCommands *commands=&world.controls.commands;
+        iais_waiting=(w_command_has(commands->buffered,25)||w_command_has(commands->executable,25))|
+            ((w_command_has(commands->buffered,39)||w_command_has(commands->executable,39))<<1);
+    }
+#endif
+    WDecision d=w_step(&world,&o);
+#if ML_WORLD_INPUT_VM && ML_WORLD_INPUT_TRACE
     world_input_trace(a,&o);
 #endif
     world_commit(a,d);w_input_finish(&world,&o,d);
+    if(d.kind==W_ENTER){
+        unsigned sheathe=previous_source==105&&d.move==W_SHEATHE;
+        unsigned iai=(d.move==W_SMALL&&(iais_waiting&1))||(d.move==W_BIG&&(iais_waiting&2));
+        unsigned dive=previous_source==172&&d.move==W_DOWN&&o.base.animation_frame<60;
+        if((sheathe||iai||dive)&&world_bind_pending(a,o.base.magnitude)){
+            log_event("world_input_bind",o.base.actor,previous_source,
+                      (u32)(o.base.animation_frame*1000),(u32)(real(a,FRAME)*1000));
+            o.base=observe(a,1);
+            if(sheathe&&w_rotation(&world,&o,&heading)){
+                put(a,HEADING,heading);put(a,TARGET,heading);
+            }
+        }
+    }
     if(world_r_gate.active){
         unsigned valid=world_r_gate.actor==(u32)(uptr)a&&world_r_gate.epoch==byte(a,AREA)&&
             o.alive&&o.drawn&&o.grounded&&o.resources_ready&&!world.move&&
@@ -666,6 +779,9 @@ static unsigned world_install(void)
     if(!world_audio_install())return 0;
 #endif
     const u32 entries[][3]={
+#if ML_WORLD_INPUT_VM
+        {0x2e9d54,0xe92d4ff0u,0xe28db01cu},
+#endif
         {0x2a309c,0xe92d4070u,0xe1a04000u},
         {0x64b414,0xe92d48f0u,0xe1a04000u},
         {0x23d80,0xe92d4070u,0xed2d8b02u},
@@ -674,6 +790,7 @@ static unsigned world_install(void)
         {0x2f4ee0,0xe92d4070u,0xe1a04000u},
         {0x169548,0xe92d4830u,0xe1a04000u},
         {0x119eef0,0xe92d4830u,0xe1a04000u},
+        {0x16db68,0xe92d4830u,0xed2d8b02u},
         {0x16bb38,0xe92d4ff0u,0xe28db01cu},
         {0x16c0c0,0xe92d4ff0u,0xe28db01cu},
         {0x171350,0xe92d4ff0u,0xe24dd004u},
@@ -705,11 +822,12 @@ static unsigned world_install(void)
     forge_hook_create((void *)(main_base+0x169548),(void *)world_attack_scale,(void **)&world_original_attack_scale);
     forge_hook_create((void *)(main_base+0x64b414),(void *)world_spirit_hud,(void **)&world_original_spirit_hud);
     forge_hook_create((void *)(main_base+0x119eef0),(void *)world_timers,(void **)&world_original_timers);
+    forge_hook_create((void *)(main_base+0x16db68),(void *)world_contact_stop,(void **)&world_original_contact_stop);
     forge_hook_create((void *)(main_base+0x16bb38),(void *)world_player_query,(void **)&world_original_player_query);
     forge_hook_create((void *)(main_base+0x16c0c0),(void *)world_monster_query,(void **)&world_original_monster_query);
     forge_hook_create((void *)(main_base+0x170968),(void *)world_monster_damage,(void **)&world_original_monster_damage);
     forge_hook_create((void *)(main_base+0x474674),(void *)world_shell_position,(void **)&world_original_shell_position);
     forge_hook_create((void *)(main_base+0x17260c),(void *)world_attack_shapes,(void **)&world_original_attack_shapes);
     forge_hook_create((void *)(main_base+0x23d80),(void *)world_camera,(void **)&world_original_camera);
-    return world_original_gauge_gain&&world_original_spirit_hud&&world_original_flinch_resist&&world_original_damage&&world_original_hp&&world_original_floor&&world_original_attack_scale&&world_original_timers&&world_original_player_query&&world_original_monster_query&&world_original_monster_damage&&world_original_shell_position&&world_original_attack_shapes&&world_original_camera;
+    return world_original_gauge_gain&&world_original_spirit_hud&&world_original_flinch_resist&&world_original_damage&&world_original_hp&&world_original_floor&&world_original_attack_scale&&world_original_timers&&world_original_contact_stop&&world_original_player_query&&world_original_monster_query&&world_original_monster_damage&&world_original_shell_position&&world_original_attack_shapes&&world_original_camera;
 }

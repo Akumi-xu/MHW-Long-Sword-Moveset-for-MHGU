@@ -47,7 +47,6 @@ static void world_counter_accept(void *a,unsigned type)
      * (request 25510). A swing or an outgoing sword hit cannot trigger it. */
     if(world.move==W_BIG || (world.move==W_FORESIGHT && world.foresight_gauge))
         world_audio_epv(a,25510,(const float *)((uptr)a+0x40));
-    if(world.move==W_BIG)world_big_counter_flash(a);
 #endif
     float duration=world.move==W_FORESIGHT?1.0f:2.0f;
     if(world_armor<duration)world_armor=duration;
@@ -116,6 +115,15 @@ static u32 world_attack_shapes(void *manager)
 }
 static u32 world_player_query(void *manager,void *attack,void *a)
 {
+    /* Helm's physics owner spans the animation rebinds. Keep the body query
+     * disabled across those handoffs until the actor touches the floor. */
+    unsigned action=u16(a,ACTION);
+    if(a==(void *)(uptr)world.actor&&world.move>=W_RISE&&world.move<=W_DOWN&&
+       world_air_owner(a)&&local_guild(a)&&u16(a,STATE)==16&&
+       action>=w_action(W_RISE)&&action<=w_action(W_DOWN)&&
+       real(a,0x44)>real(a,0x10f0)+1)
+        return 0;
+
     unsigned watched=a==(void *)(uptr)world.actor&&world_detected_attack==(u32)(uptr)attack;
     unsigned before=watched?byte(a,0x31e0):0;
     u32 result=world_original_player_query(manager,attack,a);

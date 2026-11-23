@@ -33,13 +33,17 @@ static inline void w_controls_tick(WControls *s,unsigned actor,unsigned epoch,un
     WGestures g=w_gestures(s->buttons,s->buttons+1,s->buttons+2,s->buttons+3,
                           stick,face_direction,roll_direction);
     unsigned global=w_permission_bit(permission,202)|(w_permission_bit(permission,203)<<1);
-    for(unsigned id=0;id<137;++id){
-        if(w_command_has(g.raw,id)){
-            int bit=world_command_bits[id];
-            unsigned p=w_permission_bit(permission,bit-1)|(w_permission_bit(permission,bit)<<1);
-            w_command_collect(&s->commands,id,p,global,0,0,0);
+    /* Only visit emitted gestures, preserving increasing command order. */
+    for(unsigned word=0;word<5;++word){
+        uint32_t active=g.raw[word]|g.pressed[word];
+        while(active){
+            unsigned index=__builtin_ctz(active),id=word*32+index;
+            uint32_t bit=1u<<index;
+            if(g.raw[word]&bit)
+                w_command_collect(&s->commands,id,w_command_stage(permission,id),global,0,0,0);
+            if(g.pressed[word]&bit)w_command_promote(&s->commands,id);
+            active&=active-1;
         }
-        if(w_command_has(g.pressed,id))w_command_promote(&s->commands,id);
     }
     w_command_conflicts(&s->commands,&s->queries,s->previous_queries);
     for(unsigned i=0;i<5;++i){s->queries.other[i]=s->queries.tested[i];s->queries.tested[i]=0;}

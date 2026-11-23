@@ -6,7 +6,7 @@
 static const WAudioCueRange *world_audio_active_range;
 static unsigned world_audio_range_source=~0u;
 static void *world_audio_archive,*world_audio_request;
-static unsigned world_audio_failed,world_audio_ready;
+static unsigned world_audio_failed,world_audio_ready,world_audio_native_count;
 #if ML_WORLD_AUDIO_PROBE
 static volatile unsigned world_audio_probe_command;
 #else
@@ -16,6 +16,19 @@ static unsigned world_audio_seen[(WORLD_AUDIO_CUE_COUNT+31)/32],world_audio_acto
 static float world_audio_clock;
 typedef struct {unsigned active,request,actor,epoch;float remaining,point[3];} WAudioJob;
 static WAudioJob world_audio_jobs[16];
+/* Matches the order of aliases written by stage_v11_iai_miss_audio.py. */
+static const unsigned world_audio_iai_rows[]={2,3,4,5,28,29,9};
+static unsigned world_audio_iai_alias(unsigned request)
+{
+    if(world_audio_native_count==WORLD_AUDIO_REQUEST_COUNT+sizeof(world_audio_iai_rows)/sizeof(*world_audio_iai_rows))
+        for(unsigned i=0;i<sizeof(world_audio_iai_rows)/sizeof(*world_audio_iai_rows);++i)
+            if(world_audio_iai_rows[i]==request)return WORLD_AUDIO_REQUEST_COUNT+i;
+    return request;
+}
+#if WORLD_AUDIO_GROUND
+enum { WA_HELM_FALLBACK=0x10000u, WA_HELM_TAIL=25530u };
+static unsigned world_helm_wave_played;
+#endif
 #if WORLD_AUDIO_WEAPON
 static unsigned world_audio_last_choice[WORLD_AUDIO_WEAPON_GROUP_COUNT],world_audio_rng;
 static u32 (*world_audio_original_position)(void *);
@@ -24,6 +37,8 @@ typedef struct {unsigned serial,actor,epoch;} WAudioSpatialVoice;
 static WAudioSpatialVoice world_audio_spatial_voices[128];
 static unsigned world_audio_weapon_point(void *a,unsigned request,float *point)
 {
+    if(request>=WORLD_AUDIO_REQUEST_COUNT&&request<world_audio_native_count)
+        request=world_audio_iai_rows[request-WORLD_AUDIO_REQUEST_COUNT];
     if(request<6||request>=WORLD_AUDIO_CONDITIONAL_FIRST)return 0;
 #if WORLD_AUDIO_GROUND
     if(request==WORLD_AUDIO_HELM_WAVE)return 0;
@@ -110,7 +125,7 @@ static void world_audio_weapon(void *a,const WAudioCue *cue)
     }
 }
 #endif
-static void world_audio_epv(void *a,unsigned request,const float *origin)
+static void world_audio_epv_emit(void *a,unsigned request,const float *origin,unsigned at_iai_line)
 {
     if(!world_audio_ready)return;
     unsigned yaw=word(a,HEADING);
@@ -124,25 +139,45 @@ static void world_audio_epv(void *a,unsigned request,const float *origin)
     for(unsigned n=0;n<sizeof(world_audio_stems)/sizeof(*world_audio_stems);++n){
         const WAudioStem *stem=world_audio_stems+n;if(stem->source_request!=request)continue;
         float p[3]={origin[0]+co*stem->x+sn*stem->z,origin[1]+stem->y,origin[2]-sn*stem->x+co*stem->z};
-        world_audio_schedule(a,stem->request,stem->delay,p);
+        if(at_iai_line){
+            unsigned counter=world_counter_seen||world.counter_success;
+            world_audio_play(a,counter?stem->request:world_audio_iai_alias(stem->request),p);
+        }
+        else world_audio_schedule(a,stem->request,stem->delay,p);
     }
 }
+static void world_audio_epv(void *a,unsigned request,const float *origin)
+{
+    world_audio_epv_emit(a,request,origin,0);
+}
+#if ML_WORLD_PRESENTATION
+static void world_audio_iai_line(void *a,const float *point)
+{
+    world_audio_epv_emit(a,world.rank==1?25602:25603,point,1);
+}
+#endif
 #if WORLD_AUDIO_GROUND
 static void world_audio_blade(void *a,const float *point)
 {
+    if(world_helm_wave_played||!world_audio_ready)return;
+    world_helm_wave_played=1;
     world_audio_play(a,WORLD_AUDIO_HELM_WAVE,point);
 }
-static void world_audio_tail(void *a,float delay,const float *point)
+static void world_audio_helm_land(void *a,float frame,const float *contact)
 {
-    /* Preserve EPV spatial offsets at submission, including the two voices. */
-    for(unsigned i=0;i<sizeof(world_audio_jobs)/sizeof(*world_audio_jobs);++i)if(!world_audio_jobs[i].active){
-        world_audio_jobs[i]=(WAudioJob){1,25530,(u32)(uptr)a,byte(a,AREA),delay,{point[0],point[1],point[2]}};return;
+    unsigned heading=u16(a,HEADING);
+    float point[3]={real(a,0x40)+120*world_sin(heading),real(a,0x44)+40,
+                    real(a,0x48)+120*world_sin(heading+16384u)};
+    /* Play the same blade wave at the landed slash if contact did not
+     * already play it during the dive. Keep the existing tail delay. */
+    if(!world_helm_wave_played){
+        if(frame>=30)world_audio_blade(a,point);
+        else world_audio_schedule(a,WA_HELM_FALLBACK,(30-frame)/60,point);
     }
-    log_event("world_audio_queue_full",(u32)(uptr)a,25530,0,0);
+    world_audio_schedule(a,WA_HELM_TAIL,1,contact?contact:point);
 }
 #else
 static void world_audio_blade(void *a,const float *point){(void)a;(void)point;}
-static void world_audio_tail(void *a,float d,const float *p){(void)a;(void)d;(void)p;}
 #endif
 static void world_audio_tick(void *a)
 {
@@ -173,6 +208,13 @@ static void world_audio_tick(void *a)
                 world_audio_request=objects[i];
         }
         if(!world_audio_request)return;
+        world_audio_native_count=word(world_audio_request,0x68);
+        if(world_audio_native_count!=WORLD_AUDIO_REQUEST_COUNT&&
+           world_audio_native_count!=WORLD_AUDIO_REQUEST_COUNT+sizeof(world_audio_iai_rows)/sizeof(*world_audio_iai_rows)){
+            world_audio_failed=1;
+            log_event("world_audio_failed",(u32)(uptr)a,world_audio_native_count,0,0);
+            return;
+        }
         world_audio_ready=1;
         log_event("world_audio_ready",(u32)(uptr)a,(u32)(uptr)world_audio_request,word(world_audio_request,0x68),0);
     }
@@ -191,7 +233,12 @@ static void world_audio_tick(void *a)
             /* A relative countdown avoids a growing clock's float ULP
              * rounding a source0.4s delay up by a whole simulation frame. */
             if(j->remaining<=.000001f){
-                if(j->request==25530)world_audio_epv(a,j->request,j->point);else world_audio_play(a,j->request,j->point);
+#if WORLD_AUDIO_GROUND
+                if(j->request==WA_HELM_FALLBACK)world_audio_blade(a,j->point);
+                else if(j->request==WA_HELM_TAIL)world_audio_epv(a,j->request,j->point);
+                else
+#endif
+                    world_audio_play(a,j->request,j->point);
                 j->active=0;
             }
         }
@@ -207,6 +254,9 @@ static void world_audio_tick(void *a)
         if((world_audio_seen[bucket]&mask)||real(a,FRAME)<cue->frame)continue;
         world_audio_seen[bucket]|=mask;
         if(cue->frame<world_entry_start)continue;
+#if ML_WORLD_PRESENTATION
+        if(world.move==W_BIG&&(cue->request==25602||cue->request==25603))continue;
+#endif
         if((cue->work==2007&&!world.foresight_gauge)||((cue->request==25525||cue->work==2005)&&!world.rank))continue;
 #if WORLD_AUDIO_WEAPON
         if(!cue->work){world_audio_weapon(a,cue);continue;}

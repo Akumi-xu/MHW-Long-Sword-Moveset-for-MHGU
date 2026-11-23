@@ -9,6 +9,8 @@ fn main(){
     let input_vm=env::var("ML_WORLD_INPUT_VM").as_deref()==Ok("1");
     assert!(!input_vm||combat,"World input VM requires the combat build");
     println!("cargo:rerun-if-env-changed=ML_WORLD_INPUT_VM");
+    let input_trace=env::var("ML_WORLD_INPUT_TRACE").as_deref()==Ok("1");
+    println!("cargo:rerun-if-env-changed=ML_WORLD_INPUT_TRACE");
     let audio_probe=env::var("ML_WORLD_AUDIO_PROBE").as_deref()==Ok("1");
     let fx_probe=env::var("ML_WORLD_FX_PROBE").as_deref()==Ok("1");
     let presentation=env::var("ML_WORLD_PRESENTATION").as_deref()==Ok("1");
@@ -35,12 +37,13 @@ fn main(){
     println!("cargo:rustc-check-cfg=cfg(ml_attachment_preview)");
     if preview { println!("cargo:rustc-cfg=ml_animation_preview"); }
     if attachments { println!("cargo:rustc-cfg=ml_attachment_preview"); }
-    for name in ["moveset","world_core","gu_adapter"]{
+    for name in ["moveset","world_core","gu_adapter","world_style_save","world_style_menu"]{
         let obj=out.join(format!("{name}.o"));
         let status=Command::new(&gcc).arg(if preview {"-DML_ANIMATION_PREVIEW=1"} else {"-DML_ANIMATION_PREVIEW=0"})
             .arg(if attachments {"-DML_ATTACHMENT_PREVIEW=1"} else {"-DML_ATTACHMENT_PREVIEW=0"})
             .arg(if combat {"-DML_WORLD_COMBAT=1"} else {"-DML_WORLD_COMBAT=0"})
             .arg(if input_vm {"-DML_WORLD_INPUT_VM=1"} else {"-DML_WORLD_INPUT_VM=0"})
+            .arg(if input_trace {"-DML_WORLD_INPUT_TRACE=1"} else {"-DML_WORLD_INPUT_TRACE=0"})
             .arg(if audio_probe {"-DML_WORLD_AUDIO_PROBE=1"} else {"-DML_WORLD_AUDIO_PROBE=0"})
             .arg(if fx_probe {"-DML_WORLD_FX_PROBE=1"} else {"-DML_WORLD_FX_PROBE=0"})
             .arg(if presentation {"-DML_WORLD_PRESENTATION=1"} else {"-DML_WORLD_PRESENTATION=0"})

@@ -17,13 +17,13 @@ fn main(){
     #[cfg(all(not(ml_animation_preview),not(ml_world_combat)))]
     info!("[ml-rebuild] build=rebuild-b4 native_thrust_transitions=1 legacy_assets=0 scope=fade_step");
     #[cfg(ml_world_combat)]
-    info!("[ml-rebuild] build=world-controller-dev1 scope=six_moves integration_validation_pending=1");
+    info!("[ml-rebuild] build=independent-world-style controller=v1.1");
     #[cfg(ml_world_audio_probe)]
     info!("[ml-rebuild] audio-probe-only=1 independent_entry_deploy=0");
     #[cfg(ml_world_fx_probe)]
     info!("[ml-rebuild] fx-probe-only=1 independent_entry_deploy=0");
     #[cfg(ml_world_presentation)]
-    info!("[ml-rebuild] presentation=world-layers-v102 world_audio=1 probe_mailbox=0");
+    info!("[ml-rebuild] World Style v1.2-Recomp");
     #[cfg(all(ml_animation_preview,not(ml_attachment_preview)))]
     info!("[ml-rebuild] build=body-preview-1 scope=animation_probe combat_ready=0");
     #[cfg(ml_attachment_preview)]
@@ -32,7 +32,7 @@ fn main(){
     if installed==0 {error!("[ml-rebuild] native guards rejected; controller remains inactive");return;}
     BASE.store(base,Ordering::Relaxed);
     forge::install_hook!(base,sample_pad);
-    info!("[ml-rebuild] installed; Guild only; R/ZR separate; native collision retained");
+    info!("[ml-rebuild] installed independent World style");
 }
 
 #[cfg(ml_world_combat)]

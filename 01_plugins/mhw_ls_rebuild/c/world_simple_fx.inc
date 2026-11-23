@@ -7,11 +7,9 @@ static float world_sfx_origin[3],world_blade_anchor[3];
 static void *world_blade_resource,*world_thrust_resources[2];
 static void *world_foresight_resources[3];
 
-static float world_big_started,world_big_line_birth;
-#include "world_iai_stroke.h"
+static float world_iai_second_start;
 static void world_fx_begin(void *a){
     (void)a;world_sfx_seen=0;world_sfx_hit=-1;
-    if(world.move==W_BIG)world_big_started=world_elapsed;
 }
 static void world_sfx_oriented(void *a,const float *point,unsigned uid,const float *blade)
 {
@@ -20,7 +18,7 @@ static void world_sfx_oriented(void *a,const float *point,unsigned uid,const flo
     ((void (*)(void *))(main_base+0x40b10))(request);put(request,8,2);
     put(request,20,word(request,20)|1);
     for(unsigned k=0;k<3;++k)set_real(request,32+4*k,point[k]);put(request,44,0);
-    unsigned counter_line=(uid>=0x3f6b&&uid<=0x3f7b)||(uid>=0x3f90&&uid<=0x3fb3)||uid==0x3fc3||uid==0x3fc4;
+    unsigned counter_line=uid==0x3f6b||uid==0x3f70||uid==0x3f71||uid==0x3fc3||uid==0x3fc4;
     unsigned upright=uid==0x3f81||uid==0x3f82||uid==0x3f84;
     unsigned line=uid==0x3f64||counter_line||blade||upright;
     if(line){
@@ -42,18 +40,18 @@ static void world_sfx_oriented(void *a,const float *point,unsigned uid,const flo
         (a,world_sfx_handle,2,uid,request,word(a,0x3310));
     ((void (*)(void *))(main_base+0x40b50))(request);
     log_event("world_simple_fx_emit",(u32)(uptr)a,uid,world.source,effect!=0);
-    if(uid==0x3f81)log_event("world_helm_line_direction",(u32)(uptr)a,word(world_helm_blade,32),word(world_helm_blade,36),word(world_helm_blade,40));
     if(uid==0x3f64||uid==0x3f6b||uid==0x3f70||uid==0x3f71)
         log_event(uid==0x3f64?"world_iai_line":"world_iai_counter_line",(u32)(uptr)a,(u32)effect,u16(a,HEADING),(u32)(real(a,FRAME)*1000));
 }
 static void world_sfx_emit(void *a,const float *p,unsigned uid){world_sfx_oriented(a,p,uid,0);}
 /* Update the private blade stroke after GU evaluates its native particle. */
-static void *world_white_resource,*world_counter_core[3];
+static void *world_white_resource,*world_counter_core[3],*world_rise_resource;
 static float world_white_anchor[3];
-static void world_white_stroke(void *a){
+static void world_blade_stroke(void *a,unsigned uid){
     for(unsigned k=0;k<3;++k)world_white_anchor[k]=real(a,0x40+4*k);
-    world_sfx_emit(a,world_white_anchor,0x3f85);
+    world_sfx_emit(a,world_white_anchor,uid);
 }
+static void world_white_stroke(void *a){world_blade_stroke(a,0x3f85);}
 #include "world_thrust_foresight_fx.inc"
 #include "world_particle_dynamics.inc"
 static int (*world_original_poly)(void *);
@@ -65,23 +63,38 @@ static int world_poly_update(void *g)
     if(!effect||!particle)return live;
     unsigned res=word(effect,244);
     if(!res)return live;
-    if(res==(u32)(uptr)world_counter_core[0]||res==(u32)(uptr)world_counter_core[1]||res==(u32)(uptr)world_counter_core[2]){
-        if(byte(particle,125)!=2)return live;
-        unsigned frames=word(particle,20);
-        float age=(frames?frames-1:0)/60.0f;
-        float *vertices=(float *)((uptr)particle+u16(g,212));
-        /* Particle age keeps the cast stroke fading when a follow-up changes motion. */
-        world_iai_stroke(vertices,age);
-        if(world.move==W_BIG&&world_bound&&!(world_sfx_seen&(1u<<18))){
-            world_sfx_seen|=1u<<18;
-            log_event("world_counter_ribbon",world_bound_actor,world.rank,frames,(u32)(1000*age));
-        }
-        return live;
-    }
     if(!world_bound)return live;
     world_particle_motion(g,(void *)(uptr)res);
     world_tf_follow(g,(void *)(uptr)res);
+    if(world.move==W_BIG&&world.rank&&
+       (res==(u32)(uptr)world_counter_core[0]||res==(u32)(uptr)world_counter_core[1]||res==(u32)(uptr)world_counter_core[2])){
+        void *a=(void *)(uptr)world_bound_actor;
+        if(!a||world.epoch!=byte(a,AREA)||u16(a,MOTION)!=0x500+world.slot||byte(particle,125)!=2)return live;
+        unsigned pale=res==(u32)(uptr)world_counter_core[0];
+        float clock=52+real(a,FRAME)-world_iai_second_start;
+        float middle=pale?59:55,end=pale?64:58,early=pale?55:54;
+        /* The two endpoints are in native particle space, retaining the cast direction. */
+        float u=clock<early?.30f*(clock-52)/(early-52):
+            clock<middle?.30f+.31f*(clock-early)/(middle-early):
+            .61f+.39f*(clock-middle)/(end-middle);
+        if(u<0)u=0;if(u>1)u=1;
+        float reveal=.08f+.92f*u;
+        float *vertices=(float *)((uptr)particle+u16(g,212));
+        for(unsigned i=0;i<2;++i){
+            float *near=vertices+8*i,*far=near+4;
+            for(unsigned k=0;k<3;++k){
+                float span=far[k]-near[k],pivot=near[k]+span*.124f;
+                near[k]=pivot+(near[k]-pivot)*reveal;
+                far[k]=pivot+(far[k]-pivot)*reveal;
+            }
+        }
+        if(!(world_sfx_seen&(1u<<18))){
+            world_sfx_seen|=1u<<18;log_event("world_counter_ribbon",(u32)(uptr)a,world.rank,(u32)clock,(u32)(1000*reveal));
+        }
+        return live;
+    }
     unsigned white=res==(u32)(uptr)world_white_resource&&(world.move==W_SMALL||world.move==W_FORESIGHT||world.move==W_THRUST||world.move==W_DOWN||world.move==W_RISE);
+    white|=world.move==W_RISE&&res==(u32)(uptr)world_rise_resource;
     if(!white)return live;
     if(!(world_sfx_seen&1024)){world_sfx_seen|=1024;log_event("world_blade_layout",(u32)(uptr)g,word(particle,124),u16(g,212),word(g,52));}
     if(byte(particle,125)!=2)return live;
@@ -100,7 +113,6 @@ static int world_poly_update(void *g)
 static void world_fx_tick(void *a)
 {
     if(world_sfx_failed)return;
-    world_helm_line_tick(a);
     if(!world_sfx_archive){
         void *manager=*(void **)(main_base+0x2126a64);if(!manager)return;
         uptr *vt=*(uptr **)manager;
@@ -122,6 +134,7 @@ static void world_fx_tick(void *a)
             if(world_resource_path((char *)objects[i]+8,"effect/world/iai_line_e11_0"))world_counter_core[0]=objects[i];
             if(world_resource_path((char *)objects[i]+8,"effect/world/iai_line_e10_0"))world_counter_core[1]=objects[i];
             if(world_resource_path((char *)objects[i]+8,"effect/world/iai_line_e10_rank3"))world_counter_core[2]=objects[i];
+            if(world_resource_path((char *)objects[i]+8,"effect/world/style_lift"))world_rise_resource=objects[i];
             if(world_resource_path((char *)objects[i]+8,"effect/world/iai_line_helm_3f80"))world_blade_resource=objects[i];
             if(world_resource_path((char *)objects[i]+8,"effect/world/tf_3d16"))world_thrust_resources[0]=objects[i];
             if(world_resource_path((char *)objects[i]+8,"effect/world/tf_3d1c"))world_thrust_resources[1]=objects[i];
@@ -139,18 +152,38 @@ static void world_fx_tick(void *a)
         world_sfx_manager=manager;world_particle_bind(objects,n);world_sfx_ready=1;
         log_event("world_simple_fx_ready",(u32)(uptr)a,word(world_sfx_handle,4),n,0);
     }
+    world_helm_stroke_tick(a);
     if((world.move==W_GROUND && world.source!=363)||!world_bound||world.actor!=(u32)(uptr)a||world.epoch!=byte(a,AREA)||!world.move||
        (int16_t)u16(a,HP)<=0||u16(a,STATE)!=16||u16(a,MOTION)!=0x500+world.slot)return;
     float frame=real(a,FRAME),point[3];
-    /* Whiffs still draw the stroke at the source landing/cost delay. */
-    if((world.move==W_DOWN||world.move==W_LAND)&&!world_helm_line_hit&&world_helm_tier&&
-       ((world_helm_emitted&1u)||(!world_helm_count&&world.move==W_LAND&&world_elapsed-world_helm_landed>=.5f))){
-        world_helm_line_hit=1;
-        world_helm_line(a,(const float *)((uptr)a+0x40));
-        log_event("world_helm_line_whiff",(u32)(uptr)a,(u32)(frame*1000),world_helm_count,world_helm_emitted);
+    if(world.move==W_LAND&&!(world_sfx_seen&(1u<<17))){
+        world_sfx_seen|=1u<<17;
+        world_helm_stroke_begin(a,frame);
     }
     world_tf_tick(a,frame);
     world_big_fx_tick(a,frame);
+    if(!(world_sfx_seen&(1u<<16))&&
+       ((world.move==W_DOWN&&frame>=8)||(world.move==W_RISE&&frame>=2))){
+        world_sfx_seen|=1u<<16;
+        world_blade_stroke(a,world.move==W_RISE?0x3f86:0x3f85);
+    }
+    if(world.move==W_DOWN&&frame>=24&&!(world_sfx_seen&(1u<<19))){
+        void *weapon=(void *)(uptr)word(a,0x23a0);
+        const float *blade=weapon&&word(weapon,0x30)==(u32)(uptr)a?world_bone(weapon,0):0;
+        if(blade){
+            for(unsigned k=0;k<3;++k)point[k]=blade[12+k]+120*blade[8+k];
+        }else{
+            unsigned heading=u16(a,HEADING);
+            point[0]=real(a,0x40)+120*world_sin(heading);
+            point[1]=real(a,0x44)+100;
+            point[2]=real(a,0x48)+120*world_sin(heading+16384u);
+        }
+        /* The actual downward swing owns this line, before any landing or
+         * delayed damage. Emit it even when there is no target to hit. */
+        world_sfx_seen|=1u<<19;
+        world_sfx_oriented(a,point,0x3f81,blade);
+        log_event("world_helm_dive_line",(u32)(uptr)a,(u32)(frame*1000),blade!=0,world_helm_tier);
+    }
     unsigned flash=0;
     if(world.source==306){
         if(frame>=32&&!(world_sfx_seen&1)){world_sfx_seen|=1;flash=1;}

@@ -9,11 +9,12 @@ typedef struct {
 static WFollow world_follow[8];
 static unsigned world_helm_tier;
 static unsigned world_helm_count,world_helm_hit_sample;
-static unsigned world_helm_emitted,world_helm_line_hit;
+static unsigned world_helm_emitted;
 #if ML_WORLD_PRESENTATION
-static float world_helm_landed,world_helm_sound_point[3];
-static float world_helm_blade[16];
-#include "world_helm_stroke.h"
+static unsigned world_iai_contact;
+#endif
+#if ML_WORLD_PRESENTATION
+static float world_helm_sound_point[3];
 #endif
 typedef struct {unsigned target;float next;} WPrimaryCooldown;
 static WPrimaryCooldown world_primary_cooldown[10];
@@ -21,10 +22,31 @@ static float world_elapsed;
 static u32 (*world_original_monster_query)(void *,void *,void *);
 typedef void (*WMonsterDamage)(void *,void *,void *,void *,void *,void *,void *);
 static void (*world_original_monster_damage)(void *,void *,void *,void *,void *,void *,void *,void *);
-static unsigned world_primary_helm(void *attack)
+static unsigned world_owns_weapon_hit(void *attack)
 {
     return world_attack_owned&&(uptr)attack==(uptr)world_attack_actor+0x3020&&
-        u16(attack,0x34)==world_attack_id&&(world.move==W_DOWN||world.move==W_LAND);
+        u16(attack,0x34)==world_attack_id;
+}
+static void (*world_original_contact_stop)(void *,void *);
+static void world_contact_stop(void *manager,void *attack)
+{
+    void *a=(void *)(uptr)world_attack_actor;
+    if(world.move==W_SMALL&&world_owns_weapon_hit(attack)&&world_bound&&
+       world_bound_actor==(u32)(uptr)a&&world.epoch==byte(a,AREA)&&
+       u16(a,STATE)==16&&u16(a,ACTION)==w_action(W_SMALL)&&u16(a,MOTION)==0x500+world.slot&&
+       byte(attack,0x6e)==0&&(word(attack,0x30)&8)&&word(attack,0x70)==(u32)(uptr)a){
+        /* Only the outgoing contact pause is replaced. Two native timer
+         * units are the slow timer's lightest positive integer request. */
+        set_real(a,0x27ac,0);
+        set_real(a,0x27b0,2);
+        log_event("world_small_contact_stop",(u32)(uptr)a,byte(attack,6),u16(attack,0x34),word(a,0x27b0));
+        return;
+    }
+    world_original_contact_stop(manager,attack);
+}
+static unsigned world_primary_helm(void *attack)
+{
+    return world_owns_weapon_hit(attack)&&(world.move==W_DOWN||world.move==W_LAND);
 }
 static void world_monster_damage(void *manager,void *attack,void *target,void *point,
                                  void *v1,void *v2,void *part,void *shape)
@@ -169,7 +191,6 @@ static void world_follow_capture(void *a)
         if(!world_helm_count){
             for(unsigned k=0;k<3;++k)world_helm_sound_point[k]=real(a,0x3040+4*k);
             world_audio_blade(a,world_helm_sound_point);
-            if(world.move==W_LAND)world_audio_tail(a,1-(world_elapsed-world_helm_landed),world_helm_sound_point);
         }
 #endif
         ++world_helm_count;
@@ -183,7 +204,7 @@ static void world_follow_capture(void *a)
 }
 static u32 world_monster_query(void *manager,void *attack,void *target)
 {
-    unsigned own=world_attack_owned&&(uptr)attack==(uptr)world_attack_actor+0x3020&&u16(attack,0x34)==world_attack_id;
+    unsigned own=world_owns_weapon_hit(attack);
     unsigned helm=own&&(world.move==W_DOWN||world.move==W_LAND);
     if(helm){
         if(world_helm_count>=7)return 0;
@@ -197,18 +218,16 @@ static u32 world_monster_query(void *manager,void *attack,void *target)
             if(!p->helm_impact||p->shell+0x13a8!=(u32)(uptr)attack||p->until<world_elapsed)continue;
             void *shell=(void *)(uptr)p->shell;
             if(p->request!=word(shell,0x136c)||!world.actor)continue;
-            if(p->helm_impact==1){
-                if(!world_helm_line_hit){
-                    world_helm_line_hit=1;
-                    /* The red stroke starts at the first real damage contact. */
-                    world_helm_line((void *)(uptr)world.actor,(const float *)((uptr)attack+0x20));
-                }
-            }else world_helm_impact((void *)(uptr)world.actor,(const float *)((uptr)attack+0x20));
+            world_helm_impact((void *)(uptr)world.actor,(const float *)((uptr)attack+0x20));
             p->helm_impact=0;
             log_event("world_helm_fx_contact",world.actor,p->shell,(u32)(uptr)target,p->request);
             break;
         }
     }
+#endif
+#if ML_WORLD_PRESENTATION
+    if(own&&world.move==W_BIG&&byte(attack,0xb4)==1&&word(attack,0xb0)==(u32)(uptr)target)
+        world_iai_contact=1;
 #endif
     /* Query returns once per actual target, unlike polling the last-contact
      * field next update. The native pass owns every intersection and callback. */

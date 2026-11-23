@@ -1,4 +1,6 @@
 #include "moveset.h"
+#include "world_style_save.h"
+#include "world_style_menu.h"
 #if ML_WORLD_COMBAT
 #include "world_core.h"
 #endif
@@ -63,14 +65,15 @@ static void ml_pad_read(void)
     uptr pad=*(uptr *)(main_base+0x2126888);if(!pad||(pad&3))return;
     int index=*(int *)(pad+0x6b60);if(index<0||index>8)return;
     u32 raw=*(u32 *)(pad+(u32)index*0xb50+0x1d0);
-    held=((raw&0x1000)?ML_X:0)|((raw&0x2000)?ML_A:0)|((raw&0x800)?ML_R:0)|
-         ((raw&0x4000)?ML_B:0)|((raw&0x8000)?ML_Y:0)|((raw&0x200)?ML_ZR:0);
+    held=((raw&0x1000)?ML_X:0)|((raw&0x2000)?ML_A:0)|((raw&0x200)?ML_R:0)|
+         ((raw&0x4000)?ML_B:0)|((raw&0x8000)?ML_Y:0)|((raw&0x800)?ML_ZR:0);
     pad_valid=1;
 }
 void ml_pad_refresh(void){++sample_sequence;ml_pad_read();}
 static unsigned local_guild(void *a)
 {
     if(!a||word(a,0)!=main_base+VT||!(word(a,0x13cc)&1))return 0;
+    if(!world_style_selected())return 0;
     return ((int (*)(void *))(main_base+0x268818))(a)==0;
 }
 #if ML_ANIMATION_PREVIEW || ML_WORLD_COMBAT
@@ -284,17 +287,53 @@ static MLObservation observe(void *a,unsigned direction)
 }
 #if ML_WORLD_COMBAT
 #include "world_adapter.inc"
+#if ML_WORLD_INPUT_VM
+static u32 world_spirit_request(void *a,u32 state,u32 action,u32 flags)
+{
+    unsigned current=u16(a,ACTION);
+    unsigned spirit=action==16||action==17||action==18||action==19||
+        action==23||action==24||action==26||action==27||action==30;
+    if(state!=16||u16(a,STATE)!=16||current==action||!spirit||!(flags&0x9000)||
+       !(w_private(16,current)||w_guild_source(16,current,u16(a,MOTION))))
+        return original_request(a,state,action,flags);
+
+    MLObservation aim=observe(a,1);
+    u32 result=original_request(a,state,action,flags);
+    if(aim.eligible&&aim.magnitude>=50&&u16(a,STATE)==state&&u16(a,ACTION)==action){
+        // Extend the aim on entry. The native actor still turns toward the target.
+        const int max_turn=8192; // 45 degrees on the native 16-bit heading circle.
+        int delta=ml_heading_delta(aim.input_heading,aim.heading);
+        if(delta>max_turn)delta=max_turn;
+        if(delta< -max_turn)delta= -max_turn;
+        put(a,TARGET,(aim.heading+delta)&65535u);
+        log_event("world_spirit_aim",aim.actor,action,aim.heading,(aim.heading+delta)&65535u);
+    }
+    return result;
+}
+#endif
 #endif
 static u32 request_hook(void *a,u32 state,u32 action,u32 flags)
 {
-    if(submitting||!local_guild(a))return original_request(a,state,action,flags);
+    if(!local_guild(a))return original_request(a,state,action,flags);
+    if(submitting){
+#if ML_WORLD_COMBAT && ML_WORLD_INPUT_VM
+        return world_spirit_request(a,state,action,flags);
+#else
+        return original_request(a,state,action,flags);
+#endif
+    }
     /* Requests can precede the post-poll hook. Refresh bits without adding
      * another simulation sample or advancing any buffered-key timer. */
     ml_pad_read();
 #if ML_WORLD_COMBAT
     if(world_request(a,state,action,flags))return 0;
+    if(state==1&&(action==6||action==13||action==14)&&u16(a,STATE)==16&&
+       (held&ML_B)&&!(held&ML_R)){
+        MLObservation roll=observe(a,1);
+        if(roll.eligible&&world_attack_back(&roll))world_back_roll_arm(a,roll.heading);
+    }
 #if ML_WORLD_INPUT_VM
-    return original_request(a,state,action,flags);
+    return world_spirit_request(a,state,action,flags);
 #endif
 #endif
     MLObservation o=observe(a,0);
@@ -308,6 +347,14 @@ static u32 request_hook(void *a,u32 state,u32 action,u32 flags)
 }
 static uptr __attribute__((pcs("aapcs-vfp"))) layer_hook(void *a,u32 layer,u32 motion,u32 flags,float blend,float start,float speed)
 {
+#if ML_WORLD_COMBAT
+    if(layer==0&&motion!=0xffffu&&motion!=5000u+WORLD_BACK_ROLL_SLOT)
+        world_back_roll_end(a);
+    if(layer==0&&local_guild(a)){
+        unsigned roll=world_back_roll_bind(a,motion);
+        if(roll)motion=roll;
+    }
+#endif
 #if ML_ANIMATION_PREVIEW
     /* Disposable visual experiment only. Never enabled in the normal build.
      * The native thrust handler is used as a playback host, not a combat
@@ -464,6 +511,9 @@ u32 ml_install(u32 base)
 #if ML_WORLD_COMBAT
     if(!world_install()){restore();log_event("world_combat_guard_refused",0,0,0,0);return 0;}
 #endif
+    if(!world_style_save_install(base)||!world_style_menu_install(base)){
+        restore();log_event("world_style_install_failed",0,0,0,0);return 0;
+    }
     installed=1;log_event("clean_backend_installed",0,4,0x2ab670,8);return 1;
 }
 
