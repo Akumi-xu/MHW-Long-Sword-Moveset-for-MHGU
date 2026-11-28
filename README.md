@@ -1,5 +1,21 @@
 # MHGU 太刀 · 世界风格
 
+## 世界风格太刀仿崛起增强版 / Rise-Inspired Enhanced World Style
+
+当前版本包含《崛起》式大居合派生、原版 330 号快速收刀、看破接无双、狩技收招接特殊纳刀，以及只扣血的气刃突刺。
+
+The current release adds Rise-inspired Iai follow-ups, sheathe motion 330, Foresight into Spirit Reckoning, Special Sheathe after Hunter Arts, and HP-only Spirit Thrust.
+
+下载独立安装包，把 `romfs` 解压到 `mods/MHGU_WORLD_STYLE/`，然后在装备箱选择「世界风格」。已在 Windows Recomp 0.18.1 和 Forge 2.0.0 离线副本测试。手机版、模拟器、主机和联机未测。
+
+Download the standalone package, extract `romfs` to `mods/MHGU_WORLD_STYLE/`, then select World Style at the equipment box. Tested offline with Windows Recomp 0.18.1 and Forge 2.0.0. Mobile Recomp, emulators, console and multiplayer are untested.
+
+[下载 / Download](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.2-Rise-Enhanced-Recomp/MHGU-World-Long-Sword-Rise-Enhanced_v1.2-Recomp.zip) · [发布说明 / Release notes](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/tag/v1.2-Rise-Enhanced-Recomp) · [完整说明 / Full instructions](enhanced/README.md) · [构建 / Build](enhanced/BUILD.md)
+
+## 历史版本 / Archived release
+
+以下为 2026-11-23 公开版的原始说明。 / The original notes for the November 23, 2026 public release follow.
+
 [下载 Windows 安装包](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/download/v1.2/MHGU_WORLD_STYLE_v1.2-Recomp.zip) · [v1.2 发布页](https://github.com/Akumi-xu/MHW-Long-Sword-Moveset-for-MHGU/releases/tag/v1.2) · [源码构建](BUILD.txt)
 
 ## 世界风格 v1.2-Recomp

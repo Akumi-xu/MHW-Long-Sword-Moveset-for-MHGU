@@ -1,0 +1,52 @@
+{
+  "plugin_size": 507904,
+  "plugin_crc": 738360910,
+  "headers": {
+    "attachment_data.h": [
+      [
+        "MLAttachmentClip ml_attachment_clips[]",
+        151232,
+        62,
+        3,
+        "I"
+      ],
+      [
+        "float ml_attachment_samples[][14]",
+        194448,
+        5456,
+        14,
+        "f"
+      ],
+      [
+        "unsigned char ml_attachment_selection[][2]",
+        183536,
+        5456,
+        2,
+        "B"
+      ],
+      [
+        "signed char ml_attachment_weapon_motion[]",
+        178080,
+        5456,
+        1,
+        "b"
+      ],
+      [
+        "unsigned short ml_attachment_weapon_age[]",
+        167168,
+        5456,
+        1,
+        "H"
+      ]
+    ],
+    "rise_sheathe330.h": [
+      [
+        "float rise_sheathe330_pose[][2][7]",
+        160336,
+        122,
+        14,
+        "f"
+      ]
+    ]
+  }
+}

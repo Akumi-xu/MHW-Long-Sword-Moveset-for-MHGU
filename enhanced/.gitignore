@@ -1,0 +1,5 @@
+/.cache/
+**/target/
+*.nro
+*.zip
+__pycache__/
